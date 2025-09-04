@@ -323,6 +323,8 @@ class WebGLRenderer {
 
 		let _renderBackground = false;
 
+		let _currentRenderItem = null;
+
 		function getTargetPixelRatio() {
 
 			return _currentRenderTarget === null ? _pixelRatio : 1;
@@ -1990,6 +1992,8 @@ class WebGLRenderer {
 
 				}
 
+				_currentRenderItem = renderItem;
+
 				if ( object.layers.test( camera.layers ) ) {
 
 					renderObject( object, scene, camera, geometry, material, group );
@@ -1997,6 +2001,8 @@ class WebGLRenderer {
 				}
 
 			}
+
+			_currentRenderItem = null;
 
 		}
 
@@ -2223,7 +2229,7 @@ class WebGLRenderer {
 					// we might want to call this function with some ClippingGroup
 					// object instead of the material, once it becomes feasible
 					// (#8465, #8379)
-					clipping.setState( material, camera, useCache );
+					clipping.setState( material, camera, useCache, _currentRenderItem );
 
 				}
 

@@ -106,6 +106,35 @@ function WebGLRenderList() {
 
 	function push( object, geometry, material, groupOrder, z, group ) {
 
+		// Check if object has clipping planes and clipping material
+		if ( object.clippingPlanes && object.clippingPlanes.length > 0 && object.clippingMaterial ) {
+
+			// Create inverse clipped render item first (renders the clipped portion)
+			const clippedRenderItem = getNextRenderItem( object, geometry, object.clippingMaterial, groupOrder, z, group );
+
+			// Mark as inverse clipped and store original clipping planes
+			clippedRenderItem.isInverseClipped = true;
+			clippedRenderItem.originalClippingPlanes = object.clippingPlanes;
+			clippedRenderItem.originalClipIntersection = object.clipIntersection;
+
+			// Add clipped render item to appropriate queue
+			if ( object.clippingMaterial.transmission > 0.0 ) {
+
+				transmissive.push( clippedRenderItem );
+
+			} else if ( object.clippingMaterial.transparent === true ) {
+
+				transparent.push( clippedRenderItem );
+
+			} else {
+
+				opaque.push( clippedRenderItem );
+
+			}
+
+		}
+
+		// Create original render item (will be clipped normally)
 		const renderItem = getNextRenderItem( object, geometry, material, groupOrder, z, group );
 
 		if ( material.transmission > 0.0 ) {
@@ -126,6 +155,35 @@ function WebGLRenderList() {
 
 	function unshift( object, geometry, material, groupOrder, z, group ) {
 
+		// Check if object has clipping planes and clipping material
+		if ( object.clippingPlanes && object.clippingPlanes.length > 0 && object.clippingMaterial ) {
+
+			// Create inverse clipped render item first
+			const clippedRenderItem = getNextRenderItem( object, geometry, object.clippingMaterial, groupOrder, z, group );
+
+			// Mark as inverse clipped and store original clipping planes
+			clippedRenderItem.isInverseClipped = true;
+			clippedRenderItem.originalClippingPlanes = object.clippingPlanes;
+			clippedRenderItem.originalClipIntersection = object.clipIntersection;
+
+			// Add clipped render item to appropriate queue
+			if ( object.clippingMaterial.transmission > 0.0 ) {
+
+				transmissive.unshift( clippedRenderItem );
+
+			} else if ( object.clippingMaterial.transparent === true ) {
+
+				transparent.unshift( clippedRenderItem );
+
+			} else {
+
+				opaque.unshift( clippedRenderItem );
+
+			}
+
+		}
+
+		// Create original render item
 		const renderItem = getNextRenderItem( object, geometry, material, groupOrder, z, group );
 
 		if ( material.transmission > 0.0 ) {

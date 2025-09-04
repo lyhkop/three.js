@@ -361,6 +361,41 @@ class Object3D extends EventDispatcher {
 		 */
 		this.userData = {};
 
+		/**
+		 * An array of clipping planes applied to this object only.
+		 * When set, this object will be rendered twice: once clipped by these planes,
+		 * and once with an inverse clipping to render the clipped portion.
+		 *
+		 * @type {Array<Plane>|null}
+		 * @default null
+		 */
+		this.clippingPlanes = null;
+
+		/**
+		 * The material to use for rendering the clipped portion when clippingPlanes is set.
+		 * This allows the clipped portion to have a different appearance.
+		 *
+		 * @type {Material|null}
+		 * @default null
+		 */
+		this.clippingMaterial = null;
+
+		/**
+		 * Whether clipping planes should affect intersection tests.
+		 *
+		 * @type {boolean|null}
+		 * @default false
+		 */
+		this.clipIntersection = null;
+
+		/**
+		 * Whether clipping planes should affect shadows.
+		 *
+		 * @type {boolean|null}
+		 * @default false
+		 */
+		this.clipShadows = null;
+
 	}
 
 	/**

@@ -56,11 +56,27 @@ function WebGLClipping( properties ) {
 
 	};
 
-	this.setState = function ( material, camera, useCache ) {
+	this.setState = function ( material, camera, useCache, renderItem ) {
 
-		const planes = material.clippingPlanes,
-			clipIntersection = material.clipIntersection,
-			clipShadows = material.clipShadows;
+		const object = renderItem?.object;
+		let planes = object?.clippingPlanes ?? material.clippingPlanes;
+		let clipIntersection = object?.clipIntersection ?? material.clipIntersection;
+		const clipShadows = object?.clipIntersection ?? material.clipShadows;
+
+		// Handle inverse clipping for render items
+		if ( renderItem?.isInverseClipped && renderItem?.originalClippingPlanes ) {
+
+			// For inverse clipped render items, we need to invert the clipping logic
+			// This will be handled in the projectPlanes function
+			planes = renderItem.originalClippingPlanes;
+			clipIntersection = ! renderItem.originalClipIntersection;
+			scope._isInverseClipping = true;
+
+		} else {
+
+			scope._isInverseClipping = false;
+
+		}
 
 		const materialProperties = properties.get( material );
 
@@ -145,6 +161,13 @@ function WebGLClipping( properties ) {
 				for ( let i = 0, i4 = dstOffset; i !== nPlanes; ++ i, i4 += 4 ) {
 
 					plane.copy( planes[ i ] ).applyMatrix4( viewMatrix, viewNormalMatrix );
+
+					// Invert plane for inverse clipping
+					if ( scope._isInverseClipping ) {
+
+						plane.negate();
+
+					}
 
 					plane.normal.toArray( dstArray, i4 );
 					dstArray[ i4 + 3 ] = plane.constant;
