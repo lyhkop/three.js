@@ -2458,11 +2458,27 @@ function WebGLClipping( properties ) {
 
 	};
 
-	this.setState = function ( material, camera, useCache ) {
+	this.setState = function ( material, camera, useCache, renderItem ) {
 
-		const planes = material.clippingPlanes,
-			clipIntersection = material.clipIntersection,
-			clipShadows = material.clipShadows;
+		const object = renderItem?.object;
+		let planes = object?.clippingPlanes ?? material.clippingPlanes;
+		let clipIntersection = object?.clipIntersection ?? material.clipIntersection;
+		const clipShadows = object?.clipIntersection ?? material.clipShadows;
+
+		// Handle inverse clipping for render items
+		if ( renderItem?.isInverseClipped && renderItem?.originalClippingPlanes ) {
+
+			// For inverse clipped render items, we need to invert the clipping logic
+			// This will be handled in the projectPlanes function
+			planes = renderItem.originalClippingPlanes;
+			clipIntersection = ! renderItem.originalClipIntersection;
+			scope._isInverseClipping = true;
+
+		} else {
+
+			scope._isInverseClipping = false;
+
+		}
 
 		const materialProperties = properties.get( material );
 
@@ -2547,6 +2563,13 @@ function WebGLClipping( properties ) {
 				for ( let i = 0, i4 = dstOffset; i !== nPlanes; ++ i, i4 += 4 ) {
 
 					plane.copy( planes[ i ] ).applyMatrix4( viewMatrix, viewNormalMatrix );
+
+					// Invert plane for inverse clipping
+					if ( scope._isInverseClipping ) {
+
+						plane.negate();
+
+					}
 
 					plane.normal.toArray( dstArray, i4 );
 					dstArray[ i4 + 3 ] = plane.constant;
@@ -7601,6 +7624,35 @@ function WebGLRenderList() {
 
 	function push( object, geometry, material, groupOrder, z, group ) {
 
+		// Check if object has clipping planes and clipping material
+		if ( object.clippingPlanes && object.clippingPlanes.length > 0 && object.clippingMaterial ) {
+
+			// Create inverse clipped render item first (renders the clipped portion)
+			const clippedRenderItem = getNextRenderItem( object, geometry, object.clippingMaterial, groupOrder, z, group );
+
+			// Mark as inverse clipped and store original clipping planes
+			clippedRenderItem.isInverseClipped = true;
+			clippedRenderItem.originalClippingPlanes = object.clippingPlanes;
+			clippedRenderItem.originalClipIntersection = object.clipIntersection;
+
+			// Add clipped render item to appropriate queue
+			if ( object.clippingMaterial.transmission > 0.0 ) {
+
+				transmissive.push( clippedRenderItem );
+
+			} else if ( object.clippingMaterial.transparent === true ) {
+
+				transparent.push( clippedRenderItem );
+
+			} else {
+
+				opaque.push( clippedRenderItem );
+
+			}
+
+		}
+
+		// Create original render item (will be clipped normally)
 		const renderItem = getNextRenderItem( object, geometry, material, groupOrder, z, group );
 
 		if ( material.transmission > 0.0 ) {
@@ -7621,6 +7673,35 @@ function WebGLRenderList() {
 
 	function unshift( object, geometry, material, groupOrder, z, group ) {
 
+		// Check if object has clipping planes and clipping material
+		if ( object.clippingPlanes && object.clippingPlanes.length > 0 && object.clippingMaterial ) {
+
+			// Create inverse clipped render item first
+			const clippedRenderItem = getNextRenderItem( object, geometry, object.clippingMaterial, groupOrder, z, group );
+
+			// Mark as inverse clipped and store original clipping planes
+			clippedRenderItem.isInverseClipped = true;
+			clippedRenderItem.originalClippingPlanes = object.clippingPlanes;
+			clippedRenderItem.originalClipIntersection = object.clipIntersection;
+
+			// Add clipped render item to appropriate queue
+			if ( object.clippingMaterial.transmission > 0.0 ) {
+
+				transmissive.unshift( clippedRenderItem );
+
+			} else if ( object.clippingMaterial.transparent === true ) {
+
+				transparent.unshift( clippedRenderItem );
+
+			} else {
+
+				opaque.unshift( clippedRenderItem );
+
+			}
+
+		}
+
+		// Create original render item
 		const renderItem = getNextRenderItem( object, geometry, material, groupOrder, z, group );
 
 		if ( material.transmission > 0.0 ) {
@@ -15188,6 +15269,8 @@ class WebGLRenderer {
 
 		let _renderBackground = false;
 
+		let _currentRenderItem = null;
+
 		function getTargetPixelRatio() {
 
 			return _currentRenderTarget === null ? _pixelRatio : 1;
@@ -16855,6 +16938,8 @@ class WebGLRenderer {
 
 				}
 
+				_currentRenderItem = renderItem;
+
 				if ( object.layers.test( camera.layers ) ) {
 
 					renderObject( object, scene, camera, geometry, material, group );
@@ -16862,6 +16947,8 @@ class WebGLRenderer {
 				}
 
 			}
+
+			_currentRenderItem = null;
 
 		}
 
@@ -17088,7 +17175,7 @@ class WebGLRenderer {
 					// we might want to call this function with some ClippingGroup
 					// object instead of the material, once it becomes feasible
 					// (#8465, #8379)
-					clipping.setState( material, camera, useCache );
+					clipping.setState( material, camera, useCache, _currentRenderItem );
 
 				}
 
