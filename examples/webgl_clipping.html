@@ -80,10 +80,14 @@
 					side: THREE.DoubleSide,
 
 					// ***** Clipping setup (material): *****
-					clippingPlanes: [ localPlane ],
-					clipShadows: true,
+					// clippingPlanes: [ localPlane ],
+					// clipShadows: true,
 
 					alphaToCoverage: true,
+
+					transparent: true,
+
+					depthWrite: false
 
 				} );
 
@@ -91,6 +95,9 @@
 
 				object = new THREE.Mesh( geometry, material );
 				object.castShadow = true;
+
+				object.clippingPlanes = [ localPlane ];
+
 				scene.add( object );
 
 				const ground = new THREE.Mesh(

@@ -1,78 +1,102 @@
 export default /* glsl */`
 #if NUM_CLIPPING_PLANES > 0
 
-	vec4 plane;
+    vec4 plane;
 
-	#ifdef ALPHA_TO_COVERAGE
+    #ifdef ALPHA_TO_COVERAGE
 
-		float distanceToPlane, distanceGradient;
-		float clipOpacity = 1.0;
+        float distanceToPlane, distanceGradient;
+        float clipOpacity = 1.0;
 
-		#pragma unroll_loop_start
-		for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {
+        #pragma unroll_loop_start
+        for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {
 
-			plane = clippingPlanes[ i ];
-			distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;
-			distanceGradient = fwidth( distanceToPlane ) / 2.0;
+            plane = clippingPlanes[ i ];
+            distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;
+            distanceGradient = fwidth( distanceToPlane ) / 2.0;
 			clipOpacity *= smoothstep( - distanceGradient, distanceGradient, distanceToPlane );
 
-			if ( clipOpacity == 0.0 ) discard;
+        }
+        #pragma unroll_loop_end
 
-		}
-		#pragma unroll_loop_end
-
-		#if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES
+        #if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES
 
 			float unionClipOpacity = 1.0;
 
-			#pragma unroll_loop_start
-			for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {
+            #pragma unroll_loop_start
+            for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {
 
-				plane = clippingPlanes[ i ];
-				distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;
-				distanceGradient = fwidth( distanceToPlane ) / 2.0;
+                plane = clippingPlanes[ i ];
+                distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;
+                distanceGradient = fwidth( distanceToPlane ) / 2.0;
 				unionClipOpacity *= 1.0 - smoothstep( - distanceGradient, distanceGradient, distanceToPlane );
 
-			}
-			#pragma unroll_loop_end
+            }
+            #pragma unroll_loop_end
 
 			clipOpacity *= 1.0 - unionClipOpacity;
 
-		#endif
+        #endif
+        
+        vec4 tempColor = diffuseColor;
 
-		diffuseColor.a *= clipOpacity;
+        tempColor.a *= clipOpacity;
 
-		if ( diffuseColor.a == 0.0 ) discard;
+        // 被裁剪的部分设为clippingFillColor和diffuseColor的混合
+        if ( tempColor.a == 0.0 ) {
+            
+            diffuseColor = mix( diffuseColor, clippingFillColor, clippingFillOpacity );
 
-	#else
+        }
 
-		#pragma unroll_loop_start
-		for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {
+    #else
 
-			plane = clippingPlanes[ i ];
-			if ( dot( vClipPosition, plane.xyz ) > plane.w ) discard;
+        bool isClipped = false;
 
-		}
-		#pragma unroll_loop_end
+        #pragma unroll_loop_start
+        for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {
 
-		#if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES
+            plane = clippingPlanes[ i ];
+            isClipped = isClipped || ( dot( vClipPosition, plane.xyz ) > plane.w );
 
-			bool clipped = true;
+        }
+        #pragma unroll_loop_end
 
-			#pragma unroll_loop_start
-			for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {
+        #if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES
 
-				plane = clippingPlanes[ i ];
-				clipped = ( dot( vClipPosition, plane.xyz ) > plane.w ) && clipped;
+            if ( !isClipped ) {
+                bool intersectionClipped = true;
 
-			}
-			#pragma unroll_loop_end
+                #pragma unroll_loop_start
+                for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {
 
-			if ( clipped ) discard;
+                    plane = clippingPlanes[ i ];
+                    intersectionClipped = intersectionClipped && ( dot( vClipPosition, plane.xyz ) > plane.w );
 
-		#endif
+                }
+                #pragma unroll_loop_end
 
-	#endif
+                isClipped = intersectionClipped;
+            }
+
+        #endif
+
+        // 被裁剪的部分设为clippingFillColor和diffuseColor的混合
+        #ifdef OPAQUE
+
+            if ( isClipped ) discard;
+
+        #else
+
+            if ( isClipped ) {
+                
+                diffuseColor = mix( diffuseColor, clippingFillColor, clippingFillOpacity );
+
+            }
+
+        #endif
+
+    #endif
 
 #endif
 `;

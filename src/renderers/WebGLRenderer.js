@@ -323,6 +323,8 @@ class WebGLRenderer {
 
 		let _renderBackground = false;
 
+		const _defaultClippingFillColor = new Vector4( 1.0, 1.0, 1.0, 0.0 );
+
 		function getTargetPixelRatio() {
 
 			return _currentRenderTarget === null ? _pixelRatio : 1;
@@ -2223,7 +2225,7 @@ class WebGLRenderer {
 					// we might want to call this function with some ClippingGroup
 					// object instead of the material, once it becomes feasible
 					// (#8465, #8379)
-					clipping.setState( material, camera, useCache );
+					clipping.setState( material, camera, useCache, object );
 
 				}
 
@@ -2570,6 +2572,14 @@ class WebGLRenderer {
 					uniformsGroups.bind( group, program );
 
 				}
+
+			}
+
+			if ( _clippingEnabled ) {
+
+				// 设置裁剪透明度
+				p_uniforms.setValue( _gl, 'clippingFillColor', object.clippingFillColor || _defaultClippingFillColor );
+				p_uniforms.setValue( _gl, 'clippingFillOpacity', object.clippingFillOpacity || 1.0 );
 
 			}
 

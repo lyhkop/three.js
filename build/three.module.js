@@ -323,9 +323,9 @@ var iridescence_fragment = "#ifdef USE_IRIDESCENCE\n\tconst mat3 XYZ_TO_REC709 =
 
 var bumpmap_pars_fragment = "#ifdef USE_BUMPMAP\n\tuniform sampler2D bumpMap;\n\tuniform float bumpScale;\n\tvec2 dHdxy_fwd() {\n\t\tvec2 dSTdx = dFdx( vBumpMapUv );\n\t\tvec2 dSTdy = dFdy( vBumpMapUv );\n\t\tfloat Hll = bumpScale * texture2D( bumpMap, vBumpMapUv ).x;\n\t\tfloat dBx = bumpScale * texture2D( bumpMap, vBumpMapUv + dSTdx ).x - Hll;\n\t\tfloat dBy = bumpScale * texture2D( bumpMap, vBumpMapUv + dSTdy ).x - Hll;\n\t\treturn vec2( dBx, dBy );\n\t}\n\tvec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {\n\t\tvec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) );\n\t\tvec3 vSigmaY = normalize( dFdy( surf_pos.xyz ) );\n\t\tvec3 vN = surf_norm;\n\t\tvec3 R1 = cross( vSigmaY, vN );\n\t\tvec3 R2 = cross( vN, vSigmaX );\n\t\tfloat fDet = dot( vSigmaX, R1 ) * faceDirection;\n\t\tvec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );\n\t\treturn normalize( abs( fDet ) * surf_norm - vGrad );\n\t}\n#endif";
 
-var clipping_planes_fragment = "#if NUM_CLIPPING_PLANES > 0\n\tvec4 plane;\n\t#ifdef ALPHA_TO_COVERAGE\n\t\tfloat distanceToPlane, distanceGradient;\n\t\tfloat clipOpacity = 1.0;\n\t\t#pragma unroll_loop_start\n\t\tfor ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {\n\t\t\tplane = clippingPlanes[ i ];\n\t\t\tdistanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;\n\t\t\tdistanceGradient = fwidth( distanceToPlane ) / 2.0;\n\t\t\tclipOpacity *= smoothstep( - distanceGradient, distanceGradient, distanceToPlane );\n\t\t\tif ( clipOpacity == 0.0 ) discard;\n\t\t}\n\t\t#pragma unroll_loop_end\n\t\t#if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES\n\t\t\tfloat unionClipOpacity = 1.0;\n\t\t\t#pragma unroll_loop_start\n\t\t\tfor ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {\n\t\t\t\tplane = clippingPlanes[ i ];\n\t\t\t\tdistanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;\n\t\t\t\tdistanceGradient = fwidth( distanceToPlane ) / 2.0;\n\t\t\t\tunionClipOpacity *= 1.0 - smoothstep( - distanceGradient, distanceGradient, distanceToPlane );\n\t\t\t}\n\t\t\t#pragma unroll_loop_end\n\t\t\tclipOpacity *= 1.0 - unionClipOpacity;\n\t\t#endif\n\t\tdiffuseColor.a *= clipOpacity;\n\t\tif ( diffuseColor.a == 0.0 ) discard;\n\t#else\n\t\t#pragma unroll_loop_start\n\t\tfor ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {\n\t\t\tplane = clippingPlanes[ i ];\n\t\t\tif ( dot( vClipPosition, plane.xyz ) > plane.w ) discard;\n\t\t}\n\t\t#pragma unroll_loop_end\n\t\t#if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES\n\t\t\tbool clipped = true;\n\t\t\t#pragma unroll_loop_start\n\t\t\tfor ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {\n\t\t\t\tplane = clippingPlanes[ i ];\n\t\t\t\tclipped = ( dot( vClipPosition, plane.xyz ) > plane.w ) && clipped;\n\t\t\t}\n\t\t\t#pragma unroll_loop_end\n\t\t\tif ( clipped ) discard;\n\t\t#endif\n\t#endif\n#endif";
+var clipping_planes_fragment = "#if NUM_CLIPPING_PLANES > 0\n    vec4 plane;\n    #ifdef ALPHA_TO_COVERAGE\n        float distanceToPlane, distanceGradient;\n        float clipOpacity = 1.0;\n        #pragma unroll_loop_start\n        for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {\n            plane = clippingPlanes[ i ];\n            distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;\n            distanceGradient = fwidth( distanceToPlane ) / 2.0;\n\t\t\tclipOpacity *= smoothstep( - distanceGradient, distanceGradient, distanceToPlane );\n        }\n        #pragma unroll_loop_end\n        #if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES\n\t\t\tfloat unionClipOpacity = 1.0;\n            #pragma unroll_loop_start\n            for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {\n                plane = clippingPlanes[ i ];\n                distanceToPlane = - dot( vClipPosition, plane.xyz ) + plane.w;\n                distanceGradient = fwidth( distanceToPlane ) / 2.0;\n\t\t\t\tunionClipOpacity *= 1.0 - smoothstep( - distanceGradient, distanceGradient, distanceToPlane );\n            }\n            #pragma unroll_loop_end\n\t\t\tclipOpacity *= 1.0 - unionClipOpacity;\n        #endif\n        \n        vec4 tempColor = diffuseColor;\n        tempColor.a *= clipOpacity;\n        if ( tempColor.a == 0.0 ) {\n            \n            diffuseColor = mix( diffuseColor, clippingFillColor, clippingFillOpacity );\n        }\n    #else\n        bool isClipped = false;\n        #pragma unroll_loop_start\n        for ( int i = 0; i < UNION_CLIPPING_PLANES; i ++ ) {\n            plane = clippingPlanes[ i ];\n            isClipped = isClipped || ( dot( vClipPosition, plane.xyz ) > plane.w );\n        }\n        #pragma unroll_loop_end\n        #if UNION_CLIPPING_PLANES < NUM_CLIPPING_PLANES\n            if ( !isClipped ) {\n                bool intersectionClipped = true;\n                #pragma unroll_loop_start\n                for ( int i = UNION_CLIPPING_PLANES; i < NUM_CLIPPING_PLANES; i ++ ) {\n                    plane = clippingPlanes[ i ];\n                    intersectionClipped = intersectionClipped && ( dot( vClipPosition, plane.xyz ) > plane.w );\n                }\n                #pragma unroll_loop_end\n                isClipped = intersectionClipped;\n            }\n        #endif\n        #ifdef OPAQUE\n            if ( isClipped ) discard;\n        #else\n            if ( isClipped ) {\n                \n                diffuseColor = mix( diffuseColor, clippingFillColor, clippingFillOpacity );\n            }\n        #endif\n    #endif\n#endif";
 
-var clipping_planes_pars_fragment = "#if NUM_CLIPPING_PLANES > 0\n\tvarying vec3 vClipPosition;\n\tuniform vec4 clippingPlanes[ NUM_CLIPPING_PLANES ];\n#endif";
+var clipping_planes_pars_fragment = "#if NUM_CLIPPING_PLANES > 0\n\tvarying vec3 vClipPosition;\n\tuniform vec4 clippingPlanes[ NUM_CLIPPING_PLANES ];\n\tuniform vec4 clippingFillColor;\n\tuniform float clippingFillOpacity;\n#endif";
 
 var clipping_planes_pars_vertex = "#if NUM_CLIPPING_PLANES > 0\n\tvarying vec3 vClipPosition;\n#endif";
 
@@ -2458,11 +2458,11 @@ function WebGLClipping( properties ) {
 
 	};
 
-	this.setState = function ( material, camera, useCache ) {
+	this.setState = function ( material, camera, useCache, object ) {
 
-		const planes = material.clippingPlanes,
-			clipIntersection = material.clipIntersection,
-			clipShadows = material.clipShadows;
+		const planes = object?.clippingPlanes ?? material.clippingPlanes,
+			clipIntersection = object?.clipIntersection ?? material.clipIntersection,
+			clipShadows = object?.clipIntersection ?? material.clipShadows;
 
 		const materialProperties = properties.get( material );
 
@@ -15188,6 +15188,8 @@ class WebGLRenderer {
 
 		let _renderBackground = false;
 
+		const _defaultClippingFillColor = new Vector4( 1.0, 1.0, 1.0, 0.0 );
+
 		function getTargetPixelRatio() {
 
 			return _currentRenderTarget === null ? _pixelRatio : 1;
@@ -17088,7 +17090,7 @@ class WebGLRenderer {
 					// we might want to call this function with some ClippingGroup
 					// object instead of the material, once it becomes feasible
 					// (#8465, #8379)
-					clipping.setState( material, camera, useCache );
+					clipping.setState( material, camera, useCache, object );
 
 				}
 
@@ -17435,6 +17437,14 @@ class WebGLRenderer {
 					uniformsGroups.bind( group, program );
 
 				}
+
+			}
+
+			if ( _clippingEnabled ) {
+
+				// 设置裁剪透明度
+				p_uniforms.setValue( _gl, 'clippingFillColor', object.clippingFillColor || _defaultClippingFillColor );
+				p_uniforms.setValue( _gl, 'clippingFillOpacity', object.clippingFillOpacity || 1.0 );
 
 			}
 
